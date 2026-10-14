@@ -14,6 +14,7 @@ import {
   IsoDateTime,
   OrchestratorMcpFailure,
   OrchestrationV2DispatchCommandResult,
+  ThreadContextUsageResult,
   ThreadId,
   RunId,
   NonNegativeInt,
@@ -199,6 +200,16 @@ const ThreadConfigureTool = Tool.make("t3_thread_configure", {
   }),
 }).annotate(Tool.Destructive, true);
 
+export const ThreadContextUsageTool = Tool.make("t3_thread_context_usage", {
+  ...commandTool,
+  description:
+    "Read a thread's context window usage, including used tokens, maximum capacity, remaining tokens, and percentage. Omit threadId for this thread.",
+  parameters: Schema.Struct({ threadId: Schema.optional(ThreadId) }),
+  success: ThreadContextUsageResult,
+})
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false);
+
 const transferResult = Schema.Struct({ sequence: NonNegativeInt, targetThreadId: ThreadId });
 const ThreadForkTool = Tool.make("t3_thread_fork", {
   ...commandTool,
@@ -279,6 +290,7 @@ export const ThreadToolkit = Toolkit.make(
   ThreadTransfersTool,
   ThreadConfigurationTool,
   ThreadConfigureTool,
+  ThreadContextUsageTool,
   PendingRequestListTool,
   PendingRequestReadTool,
   PendingRequestRespondTool,

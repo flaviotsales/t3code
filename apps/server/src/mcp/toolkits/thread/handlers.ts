@@ -3,6 +3,7 @@ import {
   type RuntimeRequestId,
   ThreadId,
   type OrchestrationV2ThreadProjection,
+  type OrchestrationV2ProviderTurnTokenUsage,
   type RunId,
   OrchestratorMcpFailure,
   type OrchestrationV2Command,
@@ -198,6 +199,98 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
         })
         .pipe(Effect.mapError(dispatchFailure));
       return { sequence: result.sequence };
+    }),
+  ),
+  t3_thread_context_usage: McpToolAccess.reads((input) =>
+    Effect.gen(function* () {
+      const { projection } = yield* readThread(input.threadId, [
+        "providerThreads",
+        "providerTurns",
+      ]);
+      const activeProviderThread =
+        projection.providerThreads.find(
+          (candidate) => candidate.id === projection.thread.activeProviderThreadId,
+        ) ?? projection.providerThreads.at(-1);
+
+      const candidateTurns = activeProviderThread
+        ? projection.providerTurns.filter(
+            (turn) => turn.providerThreadId === activeProviderThread.id,
+          )
+        : projection.providerTurns;
+
+      let latestUsage: OrchestrationV2ProviderTurnTokenUsage | null = null;
+      let latestOrdinal = -1;
+      let latestTime = -Infinity;
+
+      for (const turn of candidateTurns) {
+        if (turn.tokenUsage === undefined) continue;
+        const time = Date.parse(turn.tokenUsage.updatedAt);
+        const timeValid = !Number.isNaN(time);
+        if (
+          latestUsage === null ||
+          (timeValid && time > latestTime) ||
+          (timeValid && time === latestTime && turn.ordinal >= latestOrdinal) ||
+          (!timeValid && turn.ordinal >= latestOrdinal)
+        ) {
+          latestUsage = turn.tokenUsage;
+          latestTime = timeValid ? time : latestTime;
+          latestOrdinal = turn.ordinal;
+        }
+      }
+
+      if (latestUsage === null) {
+        return {
+          threadId: projection.thread.id,
+          usedTokens: 0,
+          maxTokens: null,
+          remainingTokens: null,
+          usedPercent: null,
+          remainingPercent: null,
+          inputTokens: null,
+          cachedInputTokens: null,
+          outputTokens: null,
+          reasoningOutputTokens: null,
+          updatedAt: null,
+        };
+      }
+
+      const usedTokens = Math.max(0, Math.round(latestUsage.usedTokens));
+      const maxTokens =
+        latestUsage.maxTokens != null && latestUsage.maxTokens > 0
+          ? Math.round(latestUsage.maxTokens)
+          : null;
+      const remainingTokens =
+        maxTokens !== null ? Math.max(0, maxTokens - usedTokens) : null;
+      const usedPercent =
+        maxTokens !== null ? (usedTokens / maxTokens) * 100 : null;
+      const remainingPercent =
+        usedPercent !== null ? Math.max(0, 100 - usedPercent) : null;
+
+      return {
+        threadId: projection.thread.id,
+        usedTokens,
+        maxTokens,
+        remainingTokens,
+        usedPercent,
+        remainingPercent,
+        inputTokens:
+          latestUsage.inputTokens != null
+            ? Math.max(0, Math.round(latestUsage.inputTokens))
+            : null,
+        cachedInputTokens:
+          latestUsage.cachedInputTokens != null
+            ? Math.max(0, Math.round(latestUsage.cachedInputTokens))
+            : null,
+        outputTokens:
+          latestUsage.outputTokens != null
+            ? Math.max(0, Math.round(latestUsage.outputTokens))
+            : null,
+        reasoningOutputTokens:
+          latestUsage.reasoningOutputTokens != null
+            ? Math.max(0, Math.round(latestUsage.reasoningOutputTokens))
+            : null,
+        updatedAt: latestUsage.updatedAt ?? null,
+      };
     }),
   ),
   t3_pending_request_list: McpToolAccess.reads((input) =>

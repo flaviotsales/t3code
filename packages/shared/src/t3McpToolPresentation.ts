@@ -293,6 +293,10 @@ const T3_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
     ["Read", "Reading", "Read", "thread configuration"],
     "thread-configuration",
   ),
+  t3_thread_context_usage: tool(
+    ["Read", "Reading", "Read", "chat context usage"],
+    "thread-configuration",
+  ),
   t3_thread_configure: tool(["Set", "Setting", "Set", "thread model"], "thread-configure"),
   t3_thread_fork: tool(["Fork", "Forking", "Requested a fork of", "this thread"], "thread-fork"),
   t3_thread_merge_back: tool(
